@@ -1,0 +1,265 @@
+---
+title: "\\vspace{-2cm} STA457 Time Series Analysis: "
+subtitle: 
+  <center> Forecasting the Quarterly Interest Rates for U.S. Treasury Bills </center>
+author: "Guemin Kim [1005280946]"
+output: pdf_document
+geometry: "left = 2cm, right = 2cm, top=1.5cm, bottom = 1.5cm"
+fontsize: 12pt
+header-includes:
+ \usepackage{setspace}\doublespacing
+ \usepackage{float}
+ \floatplacement{figure}{H}
+---
+
+```{r setup, include=FALSE}
+# please install the following packages prior to knitting 
+# install.packages("kableExtra")
+# install.packages("astsa")
+
+# load the package
+library(astsa)
+library(aTSA)
+library(kableExtra)
+
+# load data: qintr time series
+data(qintr)
+```
+
+## Abstract  
+A Treasury Bill is a short-term bond issued by the U.S. government with a maturity of months to up to a year. Since its interest rates are closely related to all domestic and global interest rates, changes in Treasury rates provide meaningful insights into future economic changes. This paper aims to explore and analyze time series data containing quarterly interest rates recorded for Treasury bills from 1953 to 1980. Specifically, an ARIMA(0,1,1) is chosen as the optimal model through a model selection process and is used to forecast the future Treasury rates that can provide useful information about future economic activities. As a result, ten forecasts of the interest rates demonstrate a slowly increasing trend with wide 95\% prediction intervals. In addition, by performing a spectral analysis, the first three predominant periods of 5 quarters, 6 quarters and 3.3333 quarters as well as the 95\% confidence intervals for the identified periods are obtained. As the three confidence intervals are extremely wide, significance of the peaks cannot be established.  
+
+### Keywords - Interest Rate, Treasury Bill, Time Series, Forecasting, Spectral Analysis
+
+## Introduction
+Just as COVID-19 has affected the physical and mental health of many people, it has had a significant impact on global economic trends. The COVID-19 crisis, which no one expected, has shaken the global economy, and many countries are still experiencing a recession.
+Considering the impact of such unpredictable situations on the economy, the importance of making the economic downturn predictable and helping to better read economic trends is becoming more pronounced. 
+Complex mathematical models are often used to predict potential changes in the economy, but some simple indicators also contain useful information about future economic activities (Estrella & Mishkin, 1996).  An example of these indicators is the interest rate (or the rate of return) of a Treasury Bill. 
+The Treasury Bill, also known as the T-bill, is a short-term bond issued by the U.S. government that usually matures in a few months to up to a year. 
+The interest rate of the T-Bill serves as an essential economic benchmark for domestic interest rates in the United States and an influential factor in setting global interest rates. Since investor sentiment and investment trends are often reflected in the Treasury rates, forecasts of the interest rate for the T-Bill can provide investors with directions for managing potential investment risks. In addition, economists today also rely on predictions of the future Treasury rates as changes in the interest rates for the Treasury Bills provide insight into changes in the economy and serve as an accurate forecaster of potential economic recessions for the upcoming years.
+This study aims to explore and analyze time series data including quarterly interest rates recorded for Treasury bills from 1953 to 1980. 
+Specifically, an appropriate ARIMA model for the data is chosen through the model selection process, and the optimal model is used to forecast the interest rates for 3-Month Treasury bills. Finally, a spectral analysis is performed to identify the first three predominant periods in the time series.  
+
+## Methodology  
+### Data Exploration
+Prior to model selection, we first plot the data and the ACF and PACF:
+```{r, echo=FALSE, out.height="30%", fig.align = 'center', fig.cap="Quarterly interest rate for Treasury bills"}
+# adjust the margins around the plot
+par(mar = c(4, 4, 0.1, 0.1)) 
+# plot the Quarterly interest rate recorded for Treasury bills from 1953 to 1980
+plot(qintr, 
+     ylab = "Rate (%)", xlab = "Quarter (from 1953 to 1980)")
+```
+
+Considering the Figure 1 from above, it seems like the mean quarterly interest rates for Treasury bills continuously increase over the recorded time period; however, there are some quarters in which the interest rates drop or increase by a significant amount, i.e. between the period 1975 and 1980, and these indicate that the variance of the quarterly interest rates is not constant over time. Therefore, the series is not currently stationary.  
+
+```{r, echo=FALSE, out.width="75%", fig.align = 'center', fig.cap="ACF of the time series qintr", fig.height=4}
+# adjust the margins around the plot
+par(mar = c(4, 4, 0.1, 0.1)) 
+# examining the properties of stationarity in the time series by plotting the sample acf
+plot = acf2(qintr,50)
+```
+
+Also, from the ACF plot above, we see that the sample ACF does not decay to 0 fast enough as lag h increases. This is an indication that differencing may be needed to make the series stationary. Therefore, we are going to make the series stationary through log transformation and differencing.
+
+Since the log transformation and differencing are applied to the data, each observation in the transformed dataset can now be interpreted as the percentage quarterly growth in the Treasury rates. Below is the plot of the transformed data and ACF and PACF:  
+```{r, echo=FALSE, out.height="30%", fig.align = 'center', fig.cap="The percentage change in the quarterly interest rate for Treasury bills"}
+# apply transformation to convert as a stationary process
+trans_qintr <- log(qintr)
+
+# adjust the margins around the plot
+par(mar = c(4, 4, 0.1, 0.1)) 
+# diff(log(qintr)) // the percentage change in interest rates from one quarter onto the next
+ plot(diff(trans_qintr), ylab = "Rate (%)", xlab = "Quarter (from 1953 to 1980)")
+```
+
+
+
+```{r, echo=FALSE, out.width="75%", fig.align = 'center', fig.cap="ACF and PACF plots of transformed time series diff(log(qintr))", fig.height=4}
+# Identifying the dependence orders of a SARIMA model 
+plt1 = acf2(diff(trans_qintr), 50)
+```
+As shown in Figure 3, the mean is almost constant around zero for the transformed data and the variance is also roughly constant except for some outliers between the period 1955 and 1960. Moreover, we can see from Figure 4 that the sample ACF decays to zero relatively fast as lag h increases. Hence, we choose d = 1 for our model.  
+Next, we use the ACF and PACF plots of the transformed data to figure out the orders of p and q. From Figure 4, we see that the ACF is cutting off at lag 1, while the PACF is cutting off at lag 2; therefore, we are proposing two candidate models for the time series. The first model is ARIMA = (0, 1, 1) model (for log Treasury rates) with p = 0, q = 1, and d = 1, and the second is ARIMA = (2, 1, 0) model (for log Treasury rates) with p= 2, q = 0, and d = 1.
+
+## Results
+Now, we want to identify an optimal model from the two candidate models that are proposed in the previous section. To do this, we will fit both models to the transformed data.  
+```{r, echo=FALSE, results='hide', include = FALSE}
+# fit an AR(3) model on transformed interest rate for Treasury bill
+mod1 =  sarima(trans_qintr, p = 2, d = 1, q = 0, no.constant = TRUE)
+
+# fit an MA(1) model on transformed interest rate for Treasury bill
+mod2 <- sarima(trans_qintr, p = 0, d = 1, q = 1, no.constant = TRUE)
+
+```
+
+```{r, echo=FALSE}
+# model 1 output
+kable(mod1$ttable,
+  caption = 'Parameter estimates and significances of ARIMA(2,1,0)',
+  booktabs = TRUE, 
+  valign = 't'
+)%>%
+kable_styling(latex_options = "hold_position", font_size = 10)
+
+# model 2 output
+kable(mod2$ttable,
+  caption = 'Parameter estimates and significances of ARIMA(0,1,1)',
+  booktabs = TRUE, 
+  valign = 't'
+)%>%
+kable_styling(latex_options = "hold_position", font_size = 10)
+```
+
+From the output for ARIMA(2, 1, 0) model in Table 1, we know that the estimated model is $$x_{t}\ =\ 0.5011_{(0.0903)}x_{t-1}\ -0.3990_{(0.0899)}x_{t-2}\ +\ \hat{w_{t}}$$ where $\hat{\sigma_{w}}$ = 0.1445 is based on 107 degrees of freedom and the values in the parentheses are the corresponding estimated standard errors. Since the p-values for the AR parameter estimates, ar1 and ar2, are smaller than $\alpha$ = 0.05, we know that the model parameters are statistically significant (except for the constant); the constant term is removed from the model as its p-value is greater than the significance level of 0.05.  
+Similarly, for ARIMA(0, 1, 1) model, the estimated model is $$x_{t}\ =\  0.689_{(0.0793)}\hat w_{t-1}\  +\ \hat{w_{t}}$$ where $\hat{\sigma_{w}}$ = 0.1432 is based on 108 degrees of freedom and the value in the parentheses is the corresponding estimated standard error. The p-value for the MA parameter estimate, ma1, is smaller than $\alpha$ = 0.05, and this indicates that the model parameter is statistically significant; here, we remove the constant term again as it is not significant (with its p-value greater than 0.05).
+
+### Model Diagnostics  
+Now, we perform diagnostics to check the model assumptions.  
+```{r, echo=FALSE, fig.height = 3, fig.align = 'center', results='hide',fig.keep='all', fig.cap="Diagnostic plots for ARIMA(2,1,0) model"}
+# Diagnostic plots for mod1 ARIMA(2,1,0)
+sarima(trans_qintr, p = 2, d = 1, q = 0, no.constant = TRUE)
+```
+
+```{r, echo=FALSE, fig.height = 3, fig.align = 'center', results='hide',fig.keep='all', fig.cap="Diagnostics for ARIMA(0,1,1) model"}
+# Diagnostic plots for mod2 ARIMA(0,1,1)
+sarima(trans_qintr, p = 0, d = 1, q = 1, no.constant = TRUE)
+```
+Although there are a few outliers that are exceeding three standard deviations from the mean in the standardized residuals plots of both models, the residuals of both models do not show obvious patterns. Also, from the ACF of Residuals plots of both models, we see that almost all of the vertical lines are within the blue dashed lines. This is an indication that there is no apparent departure from the randomness assumption for both ARIMA(2,1,0) and ARIMA(0,1,1) models (since both ACF plots resemble the ACF of white noise). The residuals’ normal Q-Q plots show that most of the points follow the linear trend except for some possible outliers detected at the tails. Therefore, the normality assumption also sounds reasonable for both models. Lastly, the p-values for Ljung-Box statistics are above the significance level for most lags in both models, indicating that we do not reject the null hypothesis that the residuals are independent. However, on one hand, we observe that the p-values for Ljung-Box statistics in the ARIMA(0,1,1) are further away from the significance level than those in the ARIMA(2,1,0). Hence, we need to keep in mind that, although both the ARIMA(2, 1, 0) and ARIMA(0, 1, 1) models are promising as their residuals seem iid normal with mean zero and constant variance based on the diagnostic plots, the ARIMA(0,1,1) model could be a better fit for our data.
+
+### Model selection  
+As we have two models, ARIMA(2,1,0) and ARIMA(0,1,1), that satisfy the models' assumptions, we need to choose an optimal model based on model selection criteria.  
+```{r, echo=FALSE}
+# Model Selection
+# AIC of mod1
+mod1_AIC <- mod1$AIC
+# AICc of mod1
+mod1_AICc <- mod1$AICc
+# BIC of mod1
+mod1_BIC <- mod1$BIC
+
+# Model Selection
+# AIC of mod2
+mod2_AIC <- mod2$AIC
+# AICc of mod2
+mod2_AICc <- mod2$AICc
+# BIC of mod2
+mod2_BIC <- mod2$BIC
+
+model_selection <- cbind('ARIMA(2,1,0)' = c(mod1_AIC, mod1_AICc, mod1_BIC), 'ARIMA(0, 1, 1)' = c(mod2_AIC, mod2_AICc, mod2_BIC))
+rownames(model_selection) <- c("AIC", "AICc", "BIC")
+kable(model_selection,
+  caption = 'Model Selection using transformed data',
+  booktabs = TRUE, 
+  valign = 't'
+)%>%
+kable_styling(latex_options = "hold_position", font_size = 10)
+```
+As shown above in Table 3, the ARIMA(0,1,1) model has smaller AIC, AICc, and BIC values than the ARIMA(2, 1, 0) model. Hence, we select the ARIMA(0, 1, 1) model as our optimal model.  
+
+### Forecasting
+In this section, we forecast the time series into the future ten-time periods, i.e. ten quarterly interest rates, ahead and compute the 95\% prediction intervals for each of the ten forecasts.  
+```{r, echo=FALSE, out.width="75%", fig.align = 'center', fig.cap="Forecasting the future ten quarters using an ARIMA(0,1,1) model", fig.height= 3.4}
+# Forecasting for the future 10 quarters
+pred1 = sarima.for(qintr, 10, 0, 1, 1)
+```
+Red points in Figure 7 illustrates the ten forecasts for the quarterly Treasury rates series. The actual data shown are from Quarter 1 of 1953 to Quarter 2 of 1980, and along with the actual and predicted data, the prediction bounds of $\pm$ 1 standard error (represented by the darker gray band) and $\pm$ 2 standard errors (represented by the lighter gray band) are also displayed. As shown in the figure, the uncertainty increases as the time progresses; thus, the prediction intervals get wider.  
+This can also be verified through the 95\% Prediction intervals of each forecast as shown below.  
+
+```{r, echo=FALSE, out.width="75%", fig.align = 'center'}
+# Set quarter vector
+Quarter = c(1:10)
+# Get the 5% upper Prediction interval
+upper = pred1$pred+qnorm(0.975)*pred1$se
+# Get the 5% lower Prediction interval
+lower = pred1$pred-qnorm(0.975)*pred1$se
+# Construct a dataframe for the intervals
+prediction_interval <- data.frame("Forecasted Quarter" = 1:10, "Prediction"=pred1$pred,"Lower"=lower,"Upper"=upper)
+kable(prediction_interval,
+  caption = "95\\% Prediction Intervals for each of the ten forecasts",
+  booktabs = TRUE, 
+  valign = 't',
+  align = "cccc"
+)%>%
+kable_styling(latex_options = "hold_position", font_size = 10)
+```
+
+### Spectral Analysis
+Now, we are going to perform a periodogram analysis to identify the first three predominant periods.  
+```{r, echo=FALSE, out.width="75%", fig.align = 'center', fig.cap="Periodogram of Quarterly Interest Rate series for Treasury bill", fig.height= 2.5}
+# Spectral Analysis
+qintr.per = mvspec(qintr, log="no")
+n <- length(qintr.per$freq)
+# create a data frame of the periodogram and frequency of the series
+y = cbind(quarter_num = 1:n, frequency = qintr.per$freq, periodogram = qintr.per$spec)
+# sort the periodogram in a decreasing order
+y = y[order(y[,3], decreasing = TRUE),]
+# first three dominant frequencies
+first_3_freq <- y[1:3,]
+# first three predominant periods
+periods_3 <- 1/first_3_freq[,2]
+predom_per <- cbind(c("1st", "2nd", "3rd"), Period = round(periods_3,4), Frequency = round(1/periods_3,4))
+kable(predom_per,
+  caption = "The first three predominant periods and the frequencies corresponding to them",
+  booktabs = TRUE, 
+  valign = 't',
+  align = "cccc"
+)%>%
+kable_styling(latex_options = "hold_position", font_size = 10)
+```
+
+From the Table 5 above, we see that the first three predominant periods are 5 quarters, 6 quarters and 3.3333 quarters per cycle, respectively. Using the identified periods, we obtain the 95% confidence interval for the periodogram ordinates at the three frequencies corresponding to the three identified periods.  
+
+```{r, echo=FALSE, out.width="75%", fig.align = 'center'}
+# chi-squared(0.025) with df = 2
+upper = qchisq(0.025, 2)
+# chi-squared(0.975) with df = 2
+lower = qchisq(0.975, 2)
+
+n_ <- nextn(length(qintr))
+
+per <- first_3_freq[,3]
+#first_pgram <- qintr.per$spec[n_/(periods_3[1]*4)]
+#second_pgram <- qintr.per$spec[n_/periods_3[2]]
+#third_pgram <- qintr.per$spec[n_/periods_3[3]]
+indices <- first_3_freq[,1]
+first_pgram <- qintr.per$spec[indices[1]]
+second_pgram <- qintr.per$spec[indices[2]]
+third_pgram <- qintr.per$spec[indices[3]]
+# 95% confidence interval for the first dominant frequency
+first <- c((2*first_pgram)/lower,(2*first_pgram)/upper)
+# 95% confidence interval for the second dominant frequency
+second <- c((2*second_pgram)/lower,(2*second_pgram)/upper)
+# 95% confidence interval for the third dominant frequency
+third <- c((2*third_pgram)/lower,(2*third_pgram)/upper)
+
+per_CI_95 <- cbind(Predominant_Period = c(periods_3), Frequency = first_3_freq[,2], 
+      Spectral_density = c(first_pgram, second_pgram, third_pgram), 
+      lower_bound = c(first[1], second[1], third[1]), 
+      upper_bound = c(first[2], second[2], third[2]))
+
+kable(per_CI_95,
+  caption = "95\\% Confidence Intervals for the three predominant periods",
+  booktabs = TRUE, 
+  valign = 't',
+  align = "ccccc"
+)%>%
+kable_styling(latex_options = "hold_position", font_size = 10)
+```
+As shown in Table 6, the periodogram ordinates of the first, second and third peaks are 5.488641, 3.42323, and 2.713268, respectively. The 95% confidence intervals for the three peaks, [1.4878886, 216.7898], [0.9279863, 135.2104] and [0.7355265, 107.1684], are all extremely wide, and as each of the three periodogram ordinates lies within the 95\% confidence intervals of the other two ordinates, we are unable to establish the significance of the three peaks.  
+
+## Discussion  
+
+### Conclusions  
+Throughout this analysis, we explored and analyzed the quarterly interest rates recorded for Treasury bills. As we have seen that the ten forecasts of the interest rates for 3-Month Treasury bills show a slowly increasing trend, we may think that there could be an expansion in the US economy in the next 10 quarters (starting from Quarter 3 of 1980). Also, from the result of the spectral analysis, we know that the first three predominant period of our quarterly Treasury Bill rates series is 5 quarters per cycle, 6 quarters per cycle, and 3.3333 quarters per cycle, respectively.  
+
+### Limitations  
+There is a number of limitations in this analysis. Firstly, the model does not take into account potential seasonality in the data. Although we do not observe a noticeable seasonal trend from the plot of our data (Figure 1), it is still possible that the time series is seasonal since the data is quarterly reported. If this is the case, a seasonal ARIMA model could be a better fit for the data. Thus, for further research, either a pure seasonal model or a multiplicative seasonal model could be fitted to take into account the potential seasonal behaviour in the time series.  
+Another limitation is that the dataset used for the analysis is somewhat outdated. One of the main purposes of this study is to forecast the future Treasury rates that can provide useful information about future economic activities. However, since the current time series contains observations recorded from 1953 to 1980, the forecasts of the Treasury Bill we obtained in this analysis are more like a reconstruction of the past economic conditions rather than a prediction for the future economic activities. Thus, another consideration for the future analysis is to use a new time series data with the most recent observations of the interest rates.  
+Lastly, instead of comparing our optimal model ARIMA(0,1,1) with ARIMA(2,1,0), we could consider comparing it with ARIMA(3,1,0) since many of the p-values for Ljung-Box statistics in ARIMA(2,1,0) (from Figure 5) are quite close to the significance level. ARIMA(3,1,0) model for log Treasury rate is a model with significant parameters and its p-values for Ljung-Box statistics are actually far above the significance level. Hence, for further analysis, we could try comparing the ARIMA(0,1,1) model with ARIMA(3,1,0) model.
+
+
+## Reference
+1. Estrella, A., &amp; Mishkin, F. S. (1996). The yield curve as a predictor of U.S. recessions. Current Issues in Economics and Finance, 2. https://doi.org/10.2139/ssrn.1001228   
+2. Federal Reserve Bank of San Francisco. (2000, December 1). What makes Treasury bill rates rise and fall? what effect does the economy have on T-bill rates? Federal Reserve Bank of San Francisco. Retrieved December 17, 2021, from https://www.frbsf.org/education/publications/doctor-econ/2000/december/treasury-bill-rates/  
+3. National Bank of Slovakia. (2002, May). Treasury bills and their valuation - NBS. https://www.nbs.sk/_img/Documents/BIATEC/BIA05_02/28_30.pdf. Retrieved December 17, 2021, from https://www.nbs.sk/_img/Documents/BIATEC/BIA05_02/28_30.pdf 
